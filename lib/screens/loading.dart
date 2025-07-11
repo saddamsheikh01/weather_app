@@ -3,65 +3,85 @@ import 'package:weatherapp/data/my_location.dart';
 import 'package:weatherapp/data/network.dart';
 import 'package:weatherapp/screens/weather_screen.dart';
 
-const apiKey = 'e785baf28c531b1eb151a95029c0376b';
+const String apiKey = 'e785baf28c531b1eb151a95029c0376b';
 
-class WeatherScreen extends StatefulWidget {
-  const WeatherScreen({super.key, required parseWeatherData});
+class LocationFetcherScreen extends StatefulWidget {
+  const LocationFetcherScreen({super.key});
 
   @override
-  _WeatherScreenState createState() => _WeatherScreenState();
+  State<LocationFetcherScreen> createState() => _LocationFetcherScreenState();
 }
 
-class _WeatherScreenState extends State<WeatherScreen> {
-  late double latitude3;
-  late double longitude3;
+class _LocationFetcherScreenState extends State<LocationFetcherScreen> {
+  bool isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    getLocation();
-  }
+  Future<void> _getAndNavigateToWeather() async {
+    setState(() => isLoading = true);
 
-  void getLocation() async {
-    MyLocation myLocation = MyLocation();
-    await myLocation.getMyCurrentLocation();
-    latitude3 = myLocation.latitude2;
-    longitude3 = myLocation.longitude2;
-    print(latitude3);
-    print(longitude3);
+    try {
+      MyLocation myLocation = MyLocation();
+      await myLocation.getMyCurrentLocation();
 
-    Network network = Network(
-      'https://api.openweathermap.org/data/2.5/weather'
-          '?lat=$latitude3&lon=$longitude3&appid=$apiKey&units=metric',
-    );
+      final double latitude = myLocation.latitude2;
+      final double longitude = myLocation.longitude2;
 
-    var weatherData = await network.getJsonData();
-    print(weatherData);
+      debugPrint("📍 Location: $latitude, $longitude");
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WeatherScreen(parseWeatherData: weatherData),
-      ),
-    );
+      Network network = Network(
+        'https://api.openweathermap.org/data/2.5/weather?lat=$latitude&lon=$longitude&appid=$apiKey&units=metric',
+      );
+
+      var weatherData = await network.getJsonData();
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WeatherScreen(parseWeatherData: weatherData),
+        ),
+      );
+    } catch (e) {
+      debugPrint("❌ Error fetching location/weather: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to fetch weather. Please try again.")),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.blue.shade50,
       body: Center(
-        child: ElevatedButton(
-          onPressed: getLocation,
+        child: isLoading
+            ? Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              "Fetching your local weather...\nPlease wait 🌍",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+          ],
+        )
+            : ElevatedButton.icon(
+          onPressed: _getAndNavigateToWeather,
+          icon: const Icon(Icons.location_on),
+          label: const Text('Get My Weather'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          ),
-          child: const Text(
-            'Get my location',
-            style: TextStyle(color: Colors.white),
+            backgroundColor: Colors.blueAccent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
       ),
     );
   }
 }
+
